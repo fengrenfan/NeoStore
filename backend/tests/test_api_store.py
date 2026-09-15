@@ -275,6 +275,94 @@ async def test_checkout_with_an_empty_cart_is_refused(client, db_session):
     assert response.json()["error"]["code"] == "CART_EMPTY"
 
 
+async def test_mock_payment_confirms_the_order_and_commits_stock(client, db_session):
+    await seed_world(db_session)
+
+    # Read the slug and variant through the API rather than the ORM: that is the
+    # contract the storefront actually depends on.
+    listed = (await client.get(f"{BASE}/store/products")).json()
+    slug = listed[0]["slug"]
+    detail = (await client.get(f"{BASE}/store/products/{slug}")).json()
+    variant_id = detail["variants"][0]["id"]
+
+    async def available() -> int:
+        body = (await client.get(f"{BASE}/store/products/{slug}")).json()
+        return next(row["available"] for row in body["variants"] if row["id"] == variant_id)
+
+    stock_before = await available()
+
+    token = (await client.post(f"{BASE}/store/carts", json={})).json()["token"]
+    await client.post(
+        f"{BASE}/store/carts/{token}/lines",
+        json={"variant_id": variant_id, "quantity": 2},
+    )
+    order = (
+        await client.post(
+            f"{BASE}/store/checkout",
+            json={"cart_token": token, "email": "ada@example.com", "shipping_address": SHIPPING},
+            headers={"Idempotency-Key": "http-pay-1"},
+        )
+    ).json()
+
+    # Checkout reserves, so availability drops straight away.
+    assert await available() == stock_before - 2
+
+    paid = await client.post(f"{BASE}/store/orders/{order['number']}/pay")
+
+    assert paid.status_code == 200
+    body = paid.json()
+    assert body["status"] == "paid"
+    assert body["events"][-1]["to_status"] == "paid"
+    # Paying converts the reservation into a real deduction: physical stock
+    # falls, so availability is unchanged from what the shopper already saw.
+    assert await available() == stock_before - 2
+
+
+async def test_paying_twice_is_a_conflict(client, db_session):
+    variant_id = await _published_variant_id(db_session)
+    token = (await client.post(f"{BASE}/store/carts", json={})).json()["token"]
+    await client.post(
+        f"{BASE}/store/carts/{token}/lines",
+        json={"variant_id": variant_id, "quantity": 1},
+    )
+    order = (
+        await client.post(
+            f"{BASE}/store/checkout",
+            json={"cart_token": token, "email": "ada@example.com", "shipping_address": SHIPPING},
+        )
+    ).json()
+
+    first = await client.post(f"{BASE}/store/orders/{order['number']}/pay")
+    second = await client.post(f"{BASE}/store/orders/{order['number']}/pay")
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "INVALID_STATUS_TRANSITION"
+
+
+async def test_mock_payment_route_vanishes_when_disabled(client, db_session, monkeypatch):
+    from app.core.config import settings
+
+    variant_id = await _published_variant_id(db_session)
+    token = (await client.post(f"{BASE}/store/carts", json={})).json()["token"]
+    await client.post(
+        f"{BASE}/store/carts/{token}/lines",
+        json={"variant_id": variant_id, "quantity": 1},
+    )
+    order = (
+        await client.post(
+            f"{BASE}/store/checkout",
+            json={"cart_token": token, "email": "ada@example.com", "shipping_address": SHIPPING},
+        )
+    ).json()
+
+    monkeypatch.setattr(settings, "enable_mock_payments", False)
+    response = await client.post(f"{BASE}/store/orders/{order['number']}/pay")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "MOCK_PAYMENTS_DISABLED"
+
+
 async def test_health_and_readiness(client):
     health = await client.get("/healthz")
     assert health.status_code == 200

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
+
+from app.core.serialization import UtcDatetime
 
 
 class OrderLineRead(BaseModel):
@@ -26,7 +27,7 @@ class OrderEventRead(BaseModel):
     from_status: str | None
     to_status: str
     note: str | None
-    created_at: datetime
+    created_at: UtcDatetime
 
 
 class OrderRead(BaseModel):

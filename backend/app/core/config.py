@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     locale_cookie_name: str = "neostore_locale"
     cart_token_cookie: str = "neostore_cart"
 
+    #: The mock gateway is what makes the demo a closed loop, but it must never
+    #: be reachable in production: it lets anyone mark any order paid. Turn it
+    #: off the moment a real provider is wired up.
+    enable_mock_payments: bool = True
+
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
     seed_admin_email: str = "admin@neostore.local"

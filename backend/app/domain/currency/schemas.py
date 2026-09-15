@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
+
+from app.core.serialization import UtcDatetime
 
 
 class CurrencyRead(BaseModel):
@@ -23,7 +24,7 @@ class ExchangeRateRead(BaseModel):
     quote_code: str
     rate: Decimal
     source: str
-    fetched_at: datetime
+    fetched_at: UtcDatetime
 
 
 class ExchangeRateOverride(BaseModel):
