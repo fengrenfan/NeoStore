@@ -24,6 +24,9 @@ export const metadata: Metadata = {
   description:
     "NeoStore — a cross-border DTC storefront with multi-language and multi-currency pricing.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  // The file lives in `public/`, so nothing links it and the browser falls back
+  // to requesting /favicon.ico — which 404s on every page load.
+  icons: { icon: "/favicon.svg" },
 };
 
 export default async function LocaleLayout({
