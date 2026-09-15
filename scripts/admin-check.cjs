@@ -145,8 +145,8 @@ async function main() {
   ok("login screen renders");
   await shot("01-login");
 
-  await page.fill('input[type="email"]', "admin@neostore.local");
-  await page.fill('input[type="password"]', "admin123");
+  await page.fill('input[type="email"]', adminEmail);
+  await page.fill('input[type="password"]', adminPassword);
   await page.click('button[type="submit"]');
 
   await page.getByRole("heading", { name: "概览", exact: true }).waitFor({ timeout: 15000 });
