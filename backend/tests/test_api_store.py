@@ -169,6 +169,29 @@ async def test_cart_creation_can_pin_a_region(client, db_session):
     assert created.json()["currency_code"] == "CNY"
 
 
+async def test_a_carts_totals_ignore_the_requested_region(client, db_session):
+    """The cart owns its region; ?region= must not re-tax someone else's basket."""
+    variant_id = await _published_variant_id(db_session)
+    token = (
+        await client.post(f"{BASE}/store/carts", json={"region": "cn"})
+    ).json()["token"]
+    await client.post(
+        f"{BASE}/store/carts/{token}/lines",
+        json={"variant_id": variant_id, "quantity": 2},
+    )
+
+    own = await client.get(f"{BASE}/store/carts/{token}/totals")
+    hijacked = await client.get(
+        f"{BASE}/store/carts/{token}/totals", params={"region": "us"}
+    )
+
+    assert own.status_code == 200
+    assert own.json() == hijacked.json()
+    assert own.json()["currency"] == "CNY"
+    # 2 * 144.93 = 289.86 subtotal, free shipping, 6% tax.
+    assert Decimal(own.json()["tax"]) == Decimal("17.39")
+
+
 async def test_adding_a_non_positive_quantity_is_a_validation_error(client, db_session):
     variant_id = await _published_variant_id(db_session)
     token = (await client.post(f"{BASE}/store/carts", json={})).json()["token"]

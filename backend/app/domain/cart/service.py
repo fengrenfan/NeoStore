@@ -14,7 +14,7 @@ from app.domain.cart.repository import CartRepository
 from app.domain.catalog.models import ProductVariant
 from app.domain.pricing.schemas import LineInput, PriceBreakdown
 from app.domain.pricing.service import PricingService
-from app.domain.region.models import Region
+from app.domain.region.service import RegionService
 
 DEFAULT_TTL_DAYS = 30
 
@@ -29,10 +29,16 @@ def _is_expired(expires_at: datetime | None, now: datetime) -> bool:
 
 
 class CartService:
-    def __init__(self, session: AsyncSession, pricing: PricingService | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        pricing: PricingService | None = None,
+        regions: RegionService | None = None,
+    ) -> None:
         self.session = session
         self._repo = CartRepository(session)
         self._pricing = pricing or PricingService(session)
+        self._regions = regions or RegionService(session)
 
     async def create(self, region_code: str, currency_code: str) -> Cart:
         now = datetime.now(UTC)
@@ -125,8 +131,16 @@ class CartService:
         cart.status = CartStatus.CONVERTED
         await self.session.flush()
 
-    async def totals(self, token: str, region: Region) -> PriceBreakdown:
+    async def totals(self, token: str) -> PriceBreakdown:
+        """Price the cart with *its own* region.
+
+        The region is fixed when the cart is created, so tax and shipping must
+        come from there rather than from whatever region the current request
+        happens to negotiate — otherwise the cart page and the order would
+        quote different totals for the same basket.
+        """
         cart = await self.get_by_token(token)
+        region = await self._regions.resolve_region(cart.region_code)
         lines = [
             LineInput(variant_id=line.variant_id, quantity=line.quantity)
             for line in cart.lines

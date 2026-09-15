@@ -54,8 +54,8 @@ async def get_cart(token: str, carts: CartDep) -> CartRead:
 
 
 @router.get("/{token}/totals", response_model=CartTotalsRead)
-async def cart_totals(token: str, carts: CartDep, region: RegionDep) -> CartTotalsRead:
-    breakdown = await carts.totals(token, region=region)
+async def cart_totals(token: str, carts: CartDep) -> CartTotalsRead:
+    breakdown = await carts.totals(token)
     return CartTotalsRead(
         currency=breakdown.currency,
         subtotal=breakdown.subtotal,

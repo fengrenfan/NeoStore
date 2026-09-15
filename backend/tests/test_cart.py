@@ -8,6 +8,7 @@ import pytest
 from app.core.domain_errors import CartExpiredError, NotFoundError
 from app.domain.cart.models import CartStatus
 from app.domain.cart.service import CartService
+from app.domain.order.service import OrderService
 from app.domain.region.service import RegionService
 from tests.factories import seed_world
 
@@ -84,9 +85,8 @@ async def test_remove_line_empties_the_cart(db_session):
 
 async def test_totals_add_shipping_and_tax(db_session):
     cart, _variant_id = await _cart_with_one_line(db_session)
-    region = await RegionService(db_session).resolve_region("us")
 
-    breakdown = await CartService(db_session).totals(cart.token, region)
+    breakdown = await CartService(db_session).totals(cart.token)
 
     # 19.99 subtotal is under the 100 threshold, so flat 9.90 shipping applies.
     assert breakdown.subtotal == Decimal("19.99")
@@ -96,15 +96,54 @@ async def test_totals_add_shipping_and_tax(db_session):
     assert breakdown.total == Decimal("31.98")
 
 
+async def test_totals_use_the_cart_region_not_the_callers(db_session):
+    """A CN cart keeps CN tax even when nothing about the caller says "cn"."""
+    product = await seed_world(db_session)
+    carts = CartService(db_session)
+    cart = await carts.create(region_code="cn", currency_code="CNY")
+    await carts.add_line(cart.token, product.variants[0].id, 1)
+
+    # The US region is resolvable and taxes 7%; the CN cart must ignore it.
+    us_region = await RegionService(db_session).resolve_region("us")
+    assert us_region.tax_rate == Decimal("0.0700")
+
+    breakdown = await carts.totals(cart.token)
+
+    assert breakdown.currency == "CNY"
+    # 19.99 USD converts to 144.93 CNY; 6% of that is 8.70 (HALF_UP), not 7%.
+    assert breakdown.subtotal == Decimal("144.93")
+    assert breakdown.tax == Decimal("8.70")
+
+
+async def test_cart_totals_match_the_order_they_become(db_session):
+    """The number shown in the cart is the number the order is created with."""
+    product = await seed_world(db_session)
+    carts = CartService(db_session)
+    cart = await carts.create(region_code="cn", currency_code="CNY")
+    await carts.add_line(cart.token, product.variants[0].id, 2)
+
+    breakdown = await carts.totals(cart.token)
+    order = await OrderService(db_session).checkout(
+        cart_token=cart.token, email="ada@example.com", shipping_address={}
+    )
+
+    assert order.currency_code == "CNY"
+    assert (order.subtotal, order.shipping_fee, order.tax, order.total) == (
+        breakdown.subtotal,
+        breakdown.shipping_fee,
+        breakdown.tax,
+        breakdown.total,
+    )
+
+
 async def test_free_shipping_kicks_in_above_the_threshold(db_session):
     product = await seed_world(db_session, base_price=Decimal("120.00"))
     variant_id = product.variants[0].id
     carts = CartService(db_session)
     cart = await carts.create(region_code="us", currency_code="USD")
     await carts.add_line(cart.token, variant_id, 1)
-    region = await RegionService(db_session).resolve_region("us")
 
-    breakdown = await carts.totals(cart.token, region)
+    breakdown = await carts.totals(cart.token)
 
     assert breakdown.shipping_fee == Decimal("0.00")
 
