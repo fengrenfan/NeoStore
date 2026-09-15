@@ -266,9 +266,25 @@ cancelled   cancelled     refunded  refunded
 | 数据库 | PostgreSQL | JSONB/索引/并发能力，电商领域标准 |
 | 首期范围 | 最小可用闭环 | 用户确认 |
 
-## 12. 待确认项
+## 12. 补充决策（已确认）
 
-- 项目正式名称（当前代号 NeoStore）
-- 视觉主色与品牌调性（暂定深色 + 霓虹渐变）
-- 汇率数据源（开放汇率 API 还是后台手工维护）
-- 首期是否需要真实支付网关（当前为模拟适配器）
+| 项 | 结论 |
+|---|---|
+| 项目名称 | **NeoStore**（正式使用，不再是占位代号） |
+| 汇率数据源 | 对接**开放汇率 API**（适配器模式，可替换源；拉取失败时用库中最后一条汇率并记录告警） |
+| 支付网关 | 首期**仅模拟适配器**，但接口按真实网关的形态设计（创建支付意图 → 回跳/回调 → 幂等确认），后期接入无需改调用方 |
+| 视觉主色 | **深色底 + 霓虹渐变高亮**；主强调色 `#7C5CFF`（紫）→ `#22D3EE`（青）渐变，涨/正向态用 `#34D399` |
+
+### 汇率 API 设计补充
+
+- 适配器接口：`ExchangeRateProvider.fetch(base) -> dict[str, Decimal]`
+- 默认实现 `OpenExchangeRateProvider`，走可配置的 `EXCHANGE_RATE_API_URL` 与 `EXCHANGE_RATE_API_KEY`
+- 定时任务（arq cron）每 6 小时刷新；刷新失败不覆盖已有值，仅写日志
+- 后台提供 `POST /api/v1/admin/exchange-rates/refresh` 手动触发，以及手工覆盖单条汇率的接口
+
+### 支付适配器设计补充
+
+- 接口：`PaymentProvider.create_intent(order) -> PaymentIntent`、
+  `confirm(intent_id) -> PaymentResult`、`refund(payment_id, amount) -> RefundResult`
+- 首期实现 `MockPaymentProvider`：`create_intent` 直接返回可立即确认的意图
+- `payment` 表存 `provider` / `provider_ref` / `status`，真实网关接入时只替换实现类
