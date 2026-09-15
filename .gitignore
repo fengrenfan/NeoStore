@@ -23,6 +23,11 @@ out/
 pgdata/
 caddy_data/
 
+# Compose's convention file for per-host overrides — published ports, package
+# mirrors, the public origin. Every host has different answers, so it stays out
+# of the repository and is written once per server.
+docker-compose.override.yml
+
 # Smoke-test databases (one per run, named smoke-<pid>.db)
 smoke*.db
 smoke*.db-wal

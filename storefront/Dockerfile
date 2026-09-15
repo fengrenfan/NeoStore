@@ -8,8 +8,11 @@
 
 FROM node:22-alpine AS deps
 WORKDIR /app
+# Defaults to the canonical registry; a build behind a slow or blocked route to
+# it can point this at a mirror without touching the file (see backend/Dockerfile).
+ARG NPM_REGISTRY=https://registry.npmjs.org
 COPY package.json package-lock.json* ./
-RUN npm ci --no-audit --no-fund
+RUN npm ci --registry "${NPM_REGISTRY}" --no-audit --no-fund
 
 FROM node:22-alpine AS builder
 WORKDIR /app
