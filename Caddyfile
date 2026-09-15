@@ -1,0 +1,29 @@
+{
+	email admin@neostore.local
+}
+
+# Local development entry point. Behind a real domain, replace the site address
+# with your hostname and Caddy provisions TLS automatically.
+:80 {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle /healthz {
+		reverse_proxy api:8000
+	}
+
+	handle /readyz {
+		reverse_proxy api:8000
+	}
+
+	handle /admin/* {
+		reverse_proxy admin:80
+	}
+
+	handle {
+		reverse_proxy storefront:3000
+	}
+}

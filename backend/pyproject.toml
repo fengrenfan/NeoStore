@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neostore-backend"
+version = "0.1.0"
+description = "NeoStore — cross-border DTC storefront backend"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "alembic>=1.14",
+    "asyncpg>=0.30",
+    "aiosqlite>=0.20",
+    "greenlet>=3.1",
+    "redis>=5.2",
+    "arq>=0.26",
+    "python-jose[cryptography]>=3.3",
+    "passlib>=1.7.4",
+    "bcrypt>=4.2,<5",
+    "httpx>=0.28",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "anyio>=4.6",
+    "ruff>=0.8",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"fastapi".msg = "domain layer must not depend on the web framework"
+"starlette".msg = "domain layer must not depend on the web framework"
+
+[tool.ruff.lint.per-file-ignores]
+"app/main.py" = ["TID251"]
+"app/api/**" = ["TID251"]
+"app/core/**" = ["TID251"]
+"tests/**" = ["TID251", "E501"]
