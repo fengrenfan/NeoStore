@@ -10,9 +10,12 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 # Defaults to the canonical registry; a build behind a slow or blocked route to
 # it can point this at a mirror without touching the file (see backend/Dockerfile).
+# `replace-registry-host=always` is what makes that override stick: `npm ci`
+# fetches tarballs from the `resolved` URLs recorded in the lockfile, so without
+# it a `--registry` flag is ignored for every download.
 ARG NPM_REGISTRY=https://registry.npmjs.org
 COPY package.json package-lock.json* ./
-RUN npm ci --registry "${NPM_REGISTRY}" --no-audit --no-fund
+RUN npm ci --registry "${NPM_REGISTRY}" --replace-registry-host=always --no-audit --no-fund
 
 FROM node:22-alpine AS builder
 WORKDIR /app
