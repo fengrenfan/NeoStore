@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    @apply bg-ink text-slate-100;
+  }
+
+  body {
+    @apply min-h-screen antialiased;
+  }
+
+  ::selection {
+    @apply bg-neon-violet/40;
+  }
+
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-neon-cyan;
+  }
+}
+
+@layer components {
+  /* The single accent treatment: gradient text for headings that matter. */
+  .neon-text {
+    @apply bg-neon-gradient bg-clip-text text-transparent;
+  }
+
+  .surface {
+    @apply rounded-2xl border border-ink-line bg-ink-raised;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-xl bg-neon-gradient px-4 py-2 text-sm font-semibold text-ink transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-xl border border-ink-line px-4 py-2 text-sm text-slate-200 transition hover:border-neon-violet/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-ink-line bg-ink px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500;
+  }
+
+  .field-label {
+    @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full border border-ink-line px-2.5 py-1 text-xs text-slate-300;
+  }
+}
