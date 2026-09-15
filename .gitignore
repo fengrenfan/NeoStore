@@ -23,6 +23,11 @@ out/
 pgdata/
 caddy_data/
 
+# Smoke-test databases (one per run, named smoke-<pid>.db)
+smoke*.db
+smoke*.db-wal
+smoke*.db-journal
+
 # Editors / OS
 .DS_Store
 .idea/

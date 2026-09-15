@@ -34,9 +34,16 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://neostore:neostore@db:5432/neostore
       REDIS_URL: redis://redis:6379/0
+      # Demo-only stand-in for a payment gateway's callback: it lets anyone mark
+      # any order paid. Drop this line (the default is off unless set) or set it
+      # to "false" the moment a real provider is wired up.
+      ENABLE_MOCK_PAYMENTS: "true"
+    # `app.seed` is safe to re-run — it upserts — so bootstrapping on every
+    # start is fine. Don't invent a guard flag for it: an unrecognised argument
+    # makes argparse exit non-zero and the container never comes up.
     command: >
       sh -c "alembic upgrade head &&
-             python -m app.seed --if-empty &&
+             python -m app.seed &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
     depends_on:
       db:
@@ -65,10 +72,14 @@ services:
     build:
       context: ./storefront
       args:
-        NEXT_PUBLIC_API_BASE: http://api:8000
+        # Baked into the client bundle at build time, so it has to be a URL the
+        # *browser* can reach — hence the published port, not the service name.
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+        NEXT_PUBLIC_SITE_URL: http://localhost:3000
     environment:
-      API_BASE_INTERNAL: http://api:8000
-      NEXT_PUBLIC_API_BASE: http://localhost:8000
+      # Server components talk to the API over the compose network instead of
+      # looping out through Caddy.
+      API_BASE_URL: http://api:8000
     ports:
       - "3000:3000"
     depends_on:
