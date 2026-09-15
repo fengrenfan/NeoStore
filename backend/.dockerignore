@@ -1,0 +1,17 @@
+# Nothing here is COPYed by the Dockerfile, but the context is still tarred and
+# sent to the daemon on every build — a 127 MB virtualenv makes that slow.
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets and per-run artefacts must never enter the build context.
+.env
+.env.*
+!.env.example
+smoke*.db
+*.log
+tests/
