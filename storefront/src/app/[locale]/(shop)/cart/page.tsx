@@ -9,6 +9,14 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/**
+ * The cart is per-visitor — it is derived from a cookie the layout reads for
+ * region pricing — so it must never be prerendered into a shared shell. Every
+ * other page under `(shop)` declares this for the same reason; leaving it off
+ * made `/cart` the one route Next tried to generate at build time.
+ */
+export const dynamic = "force-dynamic";
+
 export default async function CartPage({
   params,
 }: {

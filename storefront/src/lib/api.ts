@@ -319,7 +319,20 @@ async function raw(urlPath: string, options: RequestOptions = {}): Promise<Respo
     };
   }
 
-  const response = await fetch(`${baseUrl()}${API_PREFIX}${urlPath}`, init);
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}${API_PREFIX}${urlPath}`, init);
+  } catch (cause) {
+    // Normalised the same way `request` does it. A transport failure has to
+    // arrive as an ApiError with code NETWORK_ERROR, or `tolerantDuringBuild`
+    // cannot recognise it and a build-time prerender dies instead of degrading.
+    throw new ApiError(
+      503,
+      "NETWORK_ERROR",
+      `could not reach the NeoStore API at ${baseUrl()}`,
+      { cause: String(cause) },
+    );
+  }
   if (!response.ok) {
     const parsed = await readBody(response);
     const error = parsed?.error as { code?: string; message?: string } | undefined;

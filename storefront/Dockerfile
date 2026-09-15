@@ -23,10 +23,18 @@ ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ARG NEXT_PUBLIC_LOCALES=zh-CN,en,ja
 ARG NEXT_PUBLIC_DEFAULT_LOCALE=zh-CN
+# Server components render during the build as well, and the API container is
+# not up yet. Point them at a name that will not resolve: a failed connection
+# arrives as an ordinary NETWORK_ERROR, which `tolerantDuringBuild` degrades to
+# a fallback. Without it the server-side base falls through to the public URL —
+# a relative path in production — and the same situation becomes a URL that
+# will not parse, which is not tolerated and kills the prerender.
+ARG API_BASE_URL=http://api:8000
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
     NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_LOCALES=$NEXT_PUBLIC_LOCALES \
     NEXT_PUBLIC_DEFAULT_LOCALE=$NEXT_PUBLIC_DEFAULT_LOCALE \
+    API_BASE_URL=$API_BASE_URL \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
