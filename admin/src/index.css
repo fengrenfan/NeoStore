@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+
+  body {
+    @apply bg-ink text-slate-100 antialiased;
+  }
+
+  table {
+    @apply w-full border-collapse text-sm;
+  }
+
+  th {
+    @apply border-b border-ink-line px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400;
+  }
+
+  td {
+    @apply border-b border-ink-line px-3 py-2 align-middle text-slate-200;
+  }
+
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-neon-cyan;
+  }
+}
+
+@layer components {
+  .neon-text {
+    @apply bg-neon-gradient bg-clip-text text-transparent;
+  }
+
+  .surface {
+    @apply rounded-2xl border border-ink-line bg-ink-raised;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center rounded-xl px-3.5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-neon-gradient text-ink hover:opacity-90;
+  }
+
+  .btn-ghost {
+    @apply btn border border-ink-line text-slate-200 hover:border-neon-violet/60 hover:text-white;
+  }
+
+  .btn-danger {
+    @apply btn border border-red-500/40 text-red-300 hover:bg-red-500/10;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-ink-line bg-ink px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500;
+  }
+
+  .field-label {
+    @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full border border-ink-line px-2.5 py-1 text-xs text-slate-300;
+  }
+}
