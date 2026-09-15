@@ -61,6 +61,13 @@ services:
       DATABASE_URL: postgresql+asyncpg://neostore:neostore@db:5432/neostore
       REDIS_URL: redis://redis:6379/0
     command: ["arq", "app.worker.WorkerSettings"]
+    # The backend image's HEALTHCHECK curls the API's HTTP port. `arq` is a
+    # queue consumer with no listener, so the inherited probe fails forever and
+    # the container reports unhealthy while doing its job perfectly. Disabled
+    # here rather than teaching the shared image a second, service-specific
+    # probe it cannot know about.
+    healthcheck:
+      disable: true
     depends_on:
       db:
         condition: service_healthy
