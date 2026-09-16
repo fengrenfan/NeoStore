@@ -8,6 +8,31 @@ NeoStore 的运维手册。日常操作、出事时怎么办、以及三个"接�
 
 ---
 
+## 0. 访问入口
+
+| 面 | 地址 | 说明 |
+|---|---|---|
+| 顾客端 | <https://store.xiaodigua.shop> | Next.js storefront；`/` 会 307 跳到 locale 前缀（`/zh-CN`、`/en`…） |
+| **管理后台** | <https://store.xiaodigua.shop/admin/> | Vite SPA，入口标题「NeoStore 控制台」。深链由 nginx 回退到 `index.html`，未登录会停在 `/admin/login` |
+| API | `https://store.xiaodigua.shop/api/v1/...` | 与前台同源；所以生产镜像的 `NEXT_PUBLIC_API_BASE_URL` 故意留空 |
+| 健康检查 | `/healthz`、`/readyz` | 挂在 Caddy 根路径，**不带** `/api` 前缀 |
+
+上线路径：宿主 nginx（80/443，certbot 证书）→ `127.0.0.1:8091` Caddy → 按前缀分流到
+`/api` → api、`/admin` → admin、其余 → storefront。Caddy 是唯一入口，不要绕过它直连容器端口。
+
+不对外、仅本机可达的调试端口：`8091` Caddy、`3002` storefront、`8092` admin、`18082` api。
+
+**后台凭据不在仓库里**：管理员账号与密码来自 `backend/.env`（服务器专属、已 gitignore）的
+`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`，只种一次。取回：
+
+```bash
+ssh <server> 'grep -E "^SEED_ADMIN" /home/app/store/backend/.env'
+```
+
+首次登录后请在后台改掉密码（上线检查清单里有这一条）。
+
+---
+
 ## 1. 发布与迁移
 
 ### 发布一个新版本
