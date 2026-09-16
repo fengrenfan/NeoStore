@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { CheckoutView } from "@/components/CheckoutView";
-import { regionContext } from "@/lib/server";
+import { regionContext, regionFromSearchParams } from "@/lib/server";
 import { copy } from "@/lib/strings";
 
 export const metadata: Metadata = {
@@ -14,12 +14,15 @@ export const dynamic = "force-dynamic";
 
 export default async function CheckoutPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { locale } = await params;
+  const requestedRegion = regionFromSearchParams(await searchParams);
   const t = copy(locale);
-  const { region } = await regionContext();
+  const { region } = await regionContext(requestedRegion);
 
   return (
     <div className="space-y-6">

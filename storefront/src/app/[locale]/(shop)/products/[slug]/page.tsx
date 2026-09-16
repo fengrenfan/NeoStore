@@ -7,7 +7,7 @@ import { ProductImage } from "@/components/ProductImage";
 import { ApiError, getProduct } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { alternatesFor, localizedPath, siteUrl } from "@/lib/seo";
-import { regionContext } from "@/lib/server";
+import { regionContext, regionFromSearchParams } from "@/lib/server";
 import { copy } from "@/lib/strings";
 import type { ProductDetail } from "@/lib/types";
 
@@ -19,8 +19,12 @@ export const dynamic = "force-dynamic";
  * metadata can both render a 404) and rethrows anything else — swallowing a 500
  * as "not found" would hide real outages.
  */
-async function fetchProduct(slug: string, locale: string): Promise<ProductDetail | null> {
-  const { region } = await regionContext();
+async function fetchProduct(
+  slug: string,
+  locale: string,
+  requestedRegion?: string | null,
+): Promise<ProductDetail | null> {
+  const { region } = await regionContext(requestedRegion);
   try {
     return await getProduct(slug, { locale, region: region?.code });
   } catch (error) {
@@ -31,11 +35,15 @@ async function fetchProduct(slug: string, locale: string): Promise<ProductDetail
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const { locale, slug } = await params;
-  const product = await fetchProduct(slug, locale);
+  const sp = await searchParams;
+  const requestedRegion = Array.isArray(sp.region) ? sp.region[0] : sp.region;
+  const product = await fetchProduct(slug, locale, requestedRegion);
   if (!product) return { title: "404", robots: { index: false } };
 
   const description = product.seo_description ?? product.description ?? undefined;
@@ -56,15 +64,18 @@ export async function generateMetadata({
 
 export default async function ProductPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { locale, slug } = await params;
+  const requestedRegion = regionFromSearchParams(await searchParams);
   const t = copy(locale);
-  const product = await fetchProduct(slug, locale);
+  const product = await fetchProduct(slug, locale, requestedRegion);
   if (!product) notFound();
 
-  const { region } = await regionContext();
+  const { region } = await regionContext(requestedRegion);
   const [hero, ...gallery] = product.media;
 
   const jsonLd = {

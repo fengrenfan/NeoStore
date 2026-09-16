@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { getLocales, getRegions, tolerantDuringBuild } from "@/lib/api";
 import { DEFAULT_LOCALE, LOCALES, isSupportedLocale } from "@/lib/locales";
-import { currentRegion } from "@/lib/server";
+import { regionContext, regionFromSearchParams } from "@/lib/server";
 import { copy } from "@/lib/strings";
 
 import "../globals.css";
@@ -13,6 +13,14 @@ import "../globals.css";
  * This is the application's root layout — it lives inside `[locale]` so the
  * document's `lang` attribute is always correct, which is what the i18n routing
  * pattern in Next's own docs does. There is deliberately no `app/layout.tsx`.
+ *
+ * The pages below declare `export const dynamic = "force-dynamic"`; the region is
+ * carried by the `x-neostore-region` request header that middleware sets from the
+ * URL's `?region=`. The shop pages also read `searchParams` for the region, but
+ * guarded — in this standalone build `searchParams` can arrive `undefined` at
+ * runtime, so we never access it directly. `generateStaticParams` describes the
+ * known locales; it does not force a static prerender because the child pages opt
+ * into dynamic rendering.
  */
 
 export function generateStaticParams() {
@@ -32,12 +40,16 @@ export const metadata: Metadata = {
 export default async function LocaleLayout({
   children,
   params,
+  searchParams,
 }: {
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { locale } = await params;
   if (!isSupportedLocale(locale)) notFound();
+
+  const requestedRegion = regionFromSearchParams(await searchParams);
 
   // Regions drive the currency switcher; locales give the switcher the API's own
   // display names. Both are cached by the fetch layer, and both fall back to the
@@ -53,7 +65,7 @@ export default async function LocaleLayout({
     ),
     tolerantDuringBuild(getRegions(), []),
   ]);
-  const region = await currentRegion(regions);
+  const { region } = await regionContext(requestedRegion);
   const t = copy(locale);
 
   const localeCodes = LOCALES.filter((code) =>

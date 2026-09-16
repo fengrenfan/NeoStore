@@ -45,6 +45,12 @@ const SHOTS = process.env.SHOT_DIR ?? "/tmp/neostore-admin-shots";
 const base = (process.argv[2] ?? "http://127.0.0.1:5173/admin").replace(/\/$/, "");
 const orderNumber = process.argv[3];
 
+// Admin credentials come from the deployment's seeded values. The server
+// backend/.env holds SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD; default to the
+// documented dev fallback only when neither is supplied.
+const adminEmail = process.env.ADMIN_EMAIL ?? "admin@neostore.local";
+const adminPassword = process.env.ADMIN_PASSWORD ?? "admin123";
+
 /**
  * Find a Chromium Playwright can actually launch.
  *

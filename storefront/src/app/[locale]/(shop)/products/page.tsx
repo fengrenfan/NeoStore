@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ProductCard } from "@/components/ProductCard";
 import { getProducts, tolerantDuringBuild } from "@/lib/api";
 import { alternatesFor } from "@/lib/seo";
-import { regionContext } from "@/lib/server";
+import { regionContext, regionFromSearchParams } from "@/lib/server";
 import { copy } from "@/lib/strings";
 
 /** Per-request for the same reason as the homepage: prices follow the region. */
@@ -26,12 +26,15 @@ export async function generateMetadata({
 
 export default async function ProductsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { locale } = await params;
+  const requestedRegion = regionFromSearchParams(await searchParams);
   const t = copy(locale);
-  const { region } = await regionContext();
+  const { region } = await regionContext(requestedRegion);
 
   const page = await tolerantDuringBuild(
     getProducts({

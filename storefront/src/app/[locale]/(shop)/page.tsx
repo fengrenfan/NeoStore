@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { ProductCard } from "@/components/ProductCard";
 import { getProducts, tolerantDuringBuild } from "@/lib/api";
-import { regionContext } from "@/lib/server";
+import { regionContext, regionFromSearchParams } from "@/lib/server";
 import { copy } from "@/lib/strings";
 
 /**
@@ -17,12 +17,16 @@ const FEATURED_LIMIT = 6;
 
 export default async function HomePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { locale } = await params;
+  const sp = await searchParams;
+  const requestedRegion = Array.isArray(sp.region) ? sp.region[0] : sp.region;
   const t = copy(locale);
-  const { region } = await regionContext();
+  const { region } = await regionContext(requestedRegion);
 
   // Prerendering has no API to talk to; at runtime a failed catalog call is left
   // to surface rather than rendering an empty shop that looks like "no stock".

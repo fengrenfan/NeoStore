@@ -13,7 +13,8 @@
 export const CART_STORAGE_KEY = "neostore.cart_token";
 
 /** Must match `region_cookie_name` in the backend settings. */
-export const REGION_COOKIE = "neostore_region";
+import { REGION_COOKIE } from "./constants";
+export { REGION_COOKIE };
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
