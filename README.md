@@ -33,6 +33,15 @@
           PostgreSQL 16              Redis 7
 ```
 
+> 上图是 compose 内部的视角。线上在 Caddy 之前还有一层宿主 nginx 负责 TLS，见「线上部署」。
+
+## 现状
+
+- M0–M4 全部落地：后端领域层与两套 API、顾客端、后台、编排与部署。
+- 后端测试 **150 passed / 1 skipped**（跳过的是依赖 PostgreSQL 行级锁的防超卖并发用例，SQLite 上跑不了）；`ruff` 全绿。
+- 已上线 <https://store.xiaodigua.shop>，并被服务器看门狗巡检。
+- 还没接真实支付网关（见「已知取舍」）；种子数据的商品图指向占位 CDN，前端会自动降级成品牌渐变块。
+
 ## 目录
 
 | 路径 | 作用 |
@@ -45,6 +54,10 @@
 | `storefront/` | Next.js 15 App Router 顾客端，`[locale]` 路由段 |
 | `admin/` | Vite + React 管理后台，挂在 `/admin/` |
 | `scripts/smoke.sh` | 端到端冒烟测试 |
+| `scripts/storefront-check.cjs` | 顾客端的**真实浏览器**检查（15 项断言） |
+| `scripts/admin-check.cjs` | 后台的真实浏览器检查 |
+| `scripts/nginx/` | 线上 nginx 站点配置模板（换机器时重放用） |
+| `docs/RUNBOOK.md` | 运维手册：访问入口、发布与迁移、备份恢复、换汇率源、接真实支付、上线检查清单 |
 | `docs/superpowers/` | 设计文档与实施计划 |
 
 ## 起服务
@@ -64,6 +77,37 @@ docker compose up --build
 种子账号：`admin@neostore.local` / `admin123`（**上线前必须改**，见 RUNBOOK）。
 
 首次启动时 `api` 容器会自己跑 `alembic upgrade head` 和 `python -m app.seed`。种子脚本是幂等的，重复执行只会补齐缺失数据。
+
+## 线上部署
+
+线上是**单机 Docker Compose**，代码在 `124.222.204.236:/home/app/store`，对外只有一个域名：
+
+| 入口 | 地址 |
+|---|---|
+| 顾客端 | <https://store.xiaodigua.shop> |
+| 管理后台 | <https://store.xiaodigua.shop/admin/> |
+| API | `https://store.xiaodigua.shop/api/v1/...` |
+| 健康检查 | `/healthz`、`/readyz`（挂在 Caddy 根路径，**不带** `/api` 前缀） |
+
+链路：宿主 nginx（80/443 + certbot 证书）→ `127.0.0.1:8091` Caddy → 按前缀分流到
+api / admin / storefront。**Caddy 是唯一入口，不要绕过它直连容器端口。**
+
+服务器专属、**不入库**的两份配置（每台机器各不相同，只写一次）：`backend/.env` 与
+`docker-compose.override.yml` —— 里面是发布端口、包镜像源、生成的 `JWT_SECRET` / 管理员密码、
+`NEXT_PUBLIC_SITE_URL`。
+
+```bash
+cd /home/app/store
+COMPOSE_PARALLEL_LIMIT=1 docker compose build <service>   # 串行构建，这台机器内存紧
+docker compose up -d --force-recreate <service>           # 注意：镜像变新时 up -d 不会自动重建容器
+docker compose ps
+curl -fsS localhost:8091/readyz
+```
+
+生产镜像的 `NEXT_PUBLIC_API_BASE_URL` **故意留空**，于是浏览器请求同源的 `/api/v1/...`：
+同一份镜像放在端口、子域名或 HTTPS 后面都不用重新构建；server component 仍走容器内的
+`API_BASE_URL=http://api:8000`。`NEXT_PUBLIC_*` 与 `NEXT_PUBLIC_SITE_URL` 都是**构建期内联**的，
+改了要重新 build，光重启不生效。
 
 ## 本地开发（不用 Docker）
 
@@ -87,7 +131,9 @@ cd admin && npm install && npm run dev            # :5173，/api 走 Vite 代理
 |---|---|
 | `bash scripts/smoke.sh` | 全链路冒烟：下单 → 幂等 → 支付 → 后台 → 两个前端渲染 |
 | `bash scripts/smoke.sh --api-only` | 只跑后端部分 |
+| `node scripts/storefront-check.cjs <地址>` | 真实浏览器走买家链路：落地 → 浏览 → 加购 → 购物车 → 结算 → 切语言，15 项断言，含「所有 API 请求停留在本源」；零 console 报错 |
 | `node scripts/admin-check.cjs <后台地址> <订单号>` | 用真实浏览器把后台走一遍（登录 → 概览 → 各页 → 状态流转），失败即非零退出 |
+| `node scripts/currency-repro.cjs <地址>` | 切区域下拉，报告价格币种是否真的变了 + 浏览器实际发出的商品请求 URL（排查「切货币不生效」用） |
 | `cd backend && .venv/bin/python -m pytest` | 后端测试 |
 | `cd backend && .venv/bin/ruff check .` | 后端 lint（含"domain 层禁止 import fastapi"规则） |
 | `cd storefront && npm run build` | 顾客端构建 |
@@ -95,6 +141,9 @@ cd admin && npm install && npm run dev            # :5173，/api 走 Vite 代理
 | `alembic revision --autogenerate -m "..."` | 生成迁移（在 `backend/` 下执行） |
 
 冒烟脚本会自己挑 8010/3110/3111 三个端口；被占用时直接报错退出，不会误连别人的服务。端口可用环境变量换：`API_PORT=9010 WEB_PORT=9110 ADMIN_PORT=9111 bash scripts/smoke.sh`。
+
+> `storefront-check.cjs` 的第二个参数会改变它访问的 locale，但**断言文案写死中文**，
+> 所以别传非 `zh-CN` 的值（会整片假报失败）。两个浏览器脚本都需要 Playwright + Chromium。
 
 ## 环境变量
 
@@ -130,6 +179,46 @@ cd admin && npm install && npm run dev            # :5173，/api 走 Vite 代理
 6. 多币种：显式定价优先，缺失时按最新汇率换算兜底，按目标币种 `decimal_places` 取整。
 7. 前端 TS 类型从 OpenAPI 生成，不手写 interface。
 8. 时间戳出 API 前一律带上 UTC 偏移（`app/core/serialization.py` 的 `UtcDatetime`）。PostgreSQL 返回 aware、SQLite 返回 naive，不统一的话同一个订单在浏览器里会差一个时区；前端拿到 `+00:00` 自行转本地时间。
+
+### 顾客端：区域（币种）与语言怎么解析
+
+**区域由 URL 的 `?region=` 承载**，它是唯一可信来源；middleware 把它注入 `x-neostore-region`
+请求头，server component 优先读这个头。这段链路踩过三个坑，改之前先看：
+
+- **`searchParams` 在 standalone 构建的运行时是 `undefined`**，即使声明了 `force-dynamic`。
+  页面一律用 `lib/server.ts` 的 `regionFromSearchParams(await searchParams)`，不要直接解引用
+  （直接读 `sp.region` 会 `TypeError` → 500）。
+- **cookie 名等共享常量放 `lib/constants.ts`**（不带 `"use client"`）。从 `"use client"` 模块
+  导入的**值**在服务端运行时会变成 `undefined`，而 `request.cookies.get(undefined)` 永远不匹配、
+  失败得悄无声息。（`request.cookies.get()` 本身是好的，别怀疑它。）
+- **cookie → URL 的续接必须用 307 重定向**，不能用 `rewrite`：同路径的 rewrite 会被静态预渲染
+  吞掉，货币静默退回默认。目标 URL 要用 `new URL(request.url)` 构造，`nextUrl.clone()` 会丢 query
+  导致重定向死循环。
+
+语言解析顺序是「路径前缀 → 记住的 cookie → `Accept-Language` → 默认」。
+
+## 运维
+
+运维脚本都在**服务器**上，不进仓库（改之前先备份）：
+
+| 任务 | 位置 | 调度 |
+|---|---|---|
+| 容器看门狗 | `/home/ubuntu/server-watchdog.sh` | crontab，每 2 分钟 |
+| 每周磁盘清理 | `/home/ubuntu/server-disk-cleanup.sh` | crontab，每周日 04:10 |
+| MySQL 备份 | `/home/ubuntu/backup-mysql.sh` | crontab，每天 03:00 |
+
+**看门狗**巡检 16 个容器（cosmetics 4 / blog 5 / **neostore 7**）：容器 `missing` 就走
+`docker compose up -d`、非 running 走 `docker start`、`unhealthy` 走 `docker restart`。
+只要有动作就发告警邮件（同一容器 30 分钟冷却，连续 3 次拉不起来升级为「严重」），
+每天 09 点发一封心跳汇总。日志：`/home/ubuntu/server-watchdog.log`。
+
+**磁盘清理**只做可重建的清理：悬空镜像、构建缓存、停超 7 天的容器、journal 压到 200M。
+**刻意不用 `docker image prune -a`** —— 这台机器 Docker Hub 直连不通、镜像源大半失效，
+带 tag 的基础镜像（python / node / maven / temurin）是**离线构建的前提**，删了下次构建就要重拉。
+
+> 注意：`quant-engine` / `quant-web` / `quant-backend` 三个容器**不在**看门狗清单里，
+> 挂了不会自动恢复。看门狗只看容器状态，**不探 HTTP** —— 容器 healthy 但网站返 500
+> 这类故障它发现不了。
 
 ## 已知取舍
 
